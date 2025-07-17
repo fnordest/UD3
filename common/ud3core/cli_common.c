@@ -55,15 +55,127 @@
 #include "system.h"
 #include "SidFilter.h"
 
+#include "tracker.h" // For tracker control API
+// --- Tracker CLI Command Implementations ---
+
+// Transport: start
+uint8_t CMD_tracker_start(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    tracker_start();
+    ttprintf("Tracker gestartet.\r\n");
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Transport: stop
+uint8_t CMD_tracker_stop(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    tracker_stop();
+    ttprintf("Tracker gestoppt.\r\n");
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Transport: status
+uint8_t CMD_tracker_status(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    tracker_status_t status = tracker_get_status();
+    ttprintf("Tracker Status: %s, Song: %u, Pattern: %u, Mode: %s\r\n",
+        status.running ? "Läuft" : "Gestoppt",
+        status.song,
+        status.pattern,
+        status.mode == TRACKER_MODE_PLAY ? "Play" : "Live");
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Transport: mode [play|live]
+uint8_t CMD_tracker_mode(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    if(argCount < 1) {
+        ttprintf("Usage: tracker mode [play|live]\r\n");
+        return TERM_CMD_EXIT_SUCCESS;
+    }
+    if(strcmp(args[0], "play") == 0) {
+        tracker_set_mode(TRACKER_MODE_PLAY);
+        ttprintf("Tracker Modus: Play\r\n");
+    } else if(strcmp(args[0], "live") == 0) {
+        tracker_set_mode(TRACKER_MODE_LIVE);
+        ttprintf("Tracker Modus: Live\r\n");
+    } else {
+        ttprintf("Unbekannter Modus.\r\n");
+    }
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Transport: song [index]
+uint8_t CMD_tracker_song(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    if(argCount < 1) {
+        ttprintf("Usage: tracker song [index]\r\n");
+        return TERM_CMD_EXIT_SUCCESS;
+    }
+    uint8_t idx = atoi(args[0]);
+    tracker_set_song(idx);
+    ttprintf("Tracker Song gesetzt: %u\r\n", idx);
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Transport: pattern [index]
+uint8_t CMD_tracker_pattern(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    if(argCount < 1) {
+        ttprintf("Usage: tracker pattern [index]\r\n");
+        return TERM_CMD_EXIT_SUCCESS;
+    }
+    uint8_t idx = atoi(args[0]);
+    tracker_set_pattern(idx);
+    ttprintf("Tracker Pattern gesetzt: %u\r\n", idx);
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Transport: live_note [note] [velocity]
+uint8_t CMD_tracker_live_note(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    if(argCount < 2) {
+        ttprintf("Usage: tracker live_note [note] [velocity]\r\n");
+        return TERM_CMD_EXIT_SUCCESS;
+    }
+    uint8_t note = atoi(args[0]);
+    uint8_t velocity = atoi(args[1]);
+    tracker_live_note(note, velocity);
+    ttprintf("Live-Note gesendet: Note=%u, Velocity=%u\r\n", note, velocity);
+    return TERM_CMD_EXIT_SUCCESS;
+}
+
+// Main tracker command dispatcher
+uint8_t CMD_tracker(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
+    if(argCount == 0 || strcmp(args[0], "-?") == 0) {
+        ttprintf("tracker [start|stop|status|mode|song|pattern|live_note] ...\r\n");
+        return TERM_CMD_EXIT_SUCCESS;
+    }
+    if(strcmp(args[0], "start") == 0) {
+        return CMD_tracker_start(handle, argCount-1, args+1);
+    } else if(strcmp(args[0], "stop") == 0) {
+        return CMD_tracker_stop(handle, argCount-1, args+1);
+    } else if(strcmp(args[0], "status") == 0) {
+        return CMD_tracker_status(handle, argCount-1, args+1);
+    } else if(strcmp(args[0], "mode") == 0) {
+        return CMD_tracker_mode(handle, argCount-1, args+1);
+    } else if(strcmp(args[0], "song") == 0) {
+        return CMD_tracker_song(handle, argCount-1, args+1);
+    } else if(strcmp(args[0], "pattern") == 0) {
+        return CMD_tracker_pattern(handle, argCount-1, args+1);
+    } else if(strcmp(args[0], "live_note") == 0) {
+        return CMD_tracker_live_note(handle, argCount-1, args+1);
+    }
+    ttprintf("Unbekannter tracker-Befehl.\r\n");
+    return TERM_CMD_EXIT_SUCCESS;
+}
+// --- Tracker CLI Command Registration ---
+// Add this to the CLI command table (example, actual registration may differ):
+// {"tracker", "Tracker Transport Control", CMD_tracker, NULL},
+// Place in the command table/array where other commands are registered.
+
 #include "helper/digipot.h"
 
 
 #define UNUSED_VARIABLE(N) \
-	do {                   \
-		(void)(N);         \
-	} while (0)
+    do {                   \
+        (void)(N);         \
+    } while (0)
         
-	
+    
 uint8_t callback_ConfigFunction(parameter_entry * params, uint8_t index, TERMINAL_HANDLE * handle);
 uint8_t callback_DefaultFunction(parameter_entry * params, uint8_t index, TERMINAL_HANDLE * handle);
 uint8_t callback_TuneFunction(parameter_entry * params, uint8_t index, TERMINAL_HANDLE * handle);
@@ -413,7 +525,7 @@ uint8_t callback_TTupdateFunction(parameter_entry * params, uint8_t index, TERMI
     system_fault_Control = sfflag;
     
     init_tt_if_enabled(handle);
-	return 1;
+    return 1;
 }
 
 /*****************************************************************************
@@ -422,9 +534,9 @@ uint8_t callback_TTupdateFunction(parameter_entry * params, uint8_t index, TERMI
 uint8_t callback_TuneFunction(parameter_entry * params, uint8_t index, TERMINAL_HANDLE * handle) {
     if(param.tune_start >= param.tune_end){
         ttprintf("ERROR: tune_start > tune_end\r\n");
-		return 1;
-	} else
-		return 1;
+        return 1;
+    } else
+        return 1;
 }
 
 
@@ -481,8 +593,8 @@ uint8_t callback_ConfigFunction(parameter_entry * params, uint8_t index, TERMINA
     
     WD_enable(configuration.watchdog);
     configure_interrupter();
-	initialize_charging();
-	configure_ZCD_to_PWM();
+    initialize_charging();
+    configure_ZCD_to_PWM();
     update_visibilty();
     reconfig_charge_timer();
     
@@ -499,7 +611,7 @@ uint8_t callback_ConfigFunction(parameter_entry * params, uint8_t index, TERMINA
         qcw_regenerate_ramp();   
     }
     
-	system_fault_Control = sfflag;
+    system_fault_Control = sfflag;
     return 1;
 }
 
@@ -659,7 +771,7 @@ uint8_t CMD_calib(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
 * Sends the features to teslaterm
 ******************************************************************************/
 uint8_t CMD_features(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
-	for (uint8_t i = 0; i < sizeof(version)/sizeof(char*); i++) {
+    for (uint8_t i = 0; i < sizeof(version)/sizeof(char*); i++) {
        send_features(version[i],handle); 
     }
     return TERM_CMD_EXIT_SUCCESS; 
@@ -670,7 +782,7 @@ uint8_t CMD_features(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
 ******************************************************************************/
 uint8_t CMD_config_get(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
     char buffer[80];
-	for (uint8_t current_parameter = 0; current_parameter < sizeof(confparam) / sizeof(parameter_entry); current_parameter++) {
+    for (uint8_t current_parameter = 0; current_parameter < sizeof(confparam) / sizeof(parameter_entry); current_parameter++) {
         if(confparam[current_parameter].parameter_type == PARAM_CONFIG  && confparam[current_parameter].visible){
             print_param_buffer(buffer, confparam, current_parameter);
             send_config(buffer,confparam[current_parameter].help, handle);
@@ -687,7 +799,7 @@ uint8_t CMD_bootloader(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args)
 #if USE_BOOTLOADER
     Bootloadable_Load();
 #endif
-	return TERM_CMD_EXIT_SUCCESS;
+    return TERM_CMD_EXIT_SUCCESS;
 }
 
 
@@ -703,26 +815,26 @@ uint8_t CMD_udkill(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
     
     if(strcmp(args[0], "set") == 0){
         interrupter_kill();
-    	tsk_midi_kill();
-    	bus_command = BUS_COMMAND_OFF;
+        tsk_midi_kill();
+        bus_command = BUS_COMMAND_OFF;
         
         QCW_delete_timer();
         
-    	interrupter1_control_Control = 0;
-    	QCW_enable_Control = 0;
-    	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_GREEN);
-    	ttprintf("Killbit set\r\n");
+        interrupter1_control_Control = 0;
+        QCW_enable_Control = 0;
+        TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_GREEN);
+        ttprintf("Killbit set\r\n");
         alarm_push(ALM_PRIO_CRITICAL, "FAULT: Killbit set", ALM_NO_VALUE);
-    	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
+        TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
         return TERM_CMD_EXIT_SUCCESS;
     }else if(strcmp(args[0], "reset") == 0){
         interrupter_unkill();
         reset_fault();
         sysflt_clr(pdTRUE); 
         TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_GREEN);
-    	ttprintf("Killbit reset\r\n");
+        ttprintf("Killbit reset\r\n");
         alarm_push(ALM_PRIO_INFO, "INFO: Killbit reset", ALM_NO_VALUE);
-    	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
+        TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
         return TERM_CMD_EXIT_SUCCESS;
     }else if(strcmp(args[0], "get") == 0){
         TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
@@ -749,17 +861,17 @@ uint8_t CMD_get(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
         return TERM_CMD_EXIT_SUCCESS;
     }
     
-	for (uint8_t current_parameter = 0; current_parameter < sizeof(confparam) / sizeof(parameter_entry); current_parameter++) {
-		if (strcmp(args[0], confparam[current_parameter].name) == 0) {
-			//Parameter found:
-			print_param(confparam,current_parameter,handle);
-			return TERM_CMD_EXIT_SUCCESS;
-		}
-	}
-	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
-	ttprintf("E: unknown param\r\n");
-	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
-	return 0;
+    for (uint8_t current_parameter = 0; current_parameter < sizeof(confparam) / sizeof(parameter_entry); current_parameter++) {
+        if (strcmp(args[0], confparam[current_parameter].name) == 0) {
+            //Parameter found:
+            print_param(confparam,current_parameter,handle);
+            return TERM_CMD_EXIT_SUCCESS;
+        }
+    }
+    TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
+    ttprintf("E: unknown param\r\n");
+    TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
+    return 0;
 }
 
 /*****************************************************************************
@@ -767,16 +879,16 @@ uint8_t CMD_get(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
 ******************************************************************************/
 uint8_t CMD_set(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
 
-	if(argCount<2){
+    if(argCount<2){
         ttprintf("Usage: set [parameter] [value]\r\n");
         return TERM_CMD_EXIT_SUCCESS;
     }
   
-	for (uint8_t current_parameter = 0; current_parameter < sizeof(confparam) / sizeof(parameter_entry); current_parameter++) {
-		if (strcmp(args[0], confparam[current_parameter].name) == 0) {
-			//parameter name found:
+    for (uint8_t current_parameter = 0; current_parameter < sizeof(confparam) / sizeof(parameter_entry); current_parameter++) {
+        if (strcmp(args[0], confparam[current_parameter].name) == 0) {
+            //parameter name found:
 
-			if (updateDefaultFunction(confparam, args[1],current_parameter, handle)){
+            if (updateDefaultFunction(confparam, args[1],current_parameter, handle)){
                 if(confparam[current_parameter].callback_function){
                     if (confparam[current_parameter].callback_function(confparam, current_parameter, handle)){
                         TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_GREEN);
@@ -795,18 +907,18 @@ uint8_t CMD_set(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
                     TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
                     return TERM_CMD_EXIT_SUCCESS;
                 }
-			} else {
-				TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
-				ttprintf("NOK\r\n");
-				TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
-				return TERM_CMD_EXIT_SUCCESS;
-			}
-		}
-	}
-	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
-	ttprintf("E: unknown param\r\n");
-	TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
-	return TERM_CMD_EXIT_SUCCESS;
+            } else {
+                TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
+                ttprintf("NOK\r\n");
+                TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
+                return TERM_CMD_EXIT_SUCCESS;
+            }
+        }
+    }
+    TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_RED);
+    ttprintf("E: unknown param\r\n");
+    TERM_sendVT100Code(handle, _VT100_FOREGROUND_COLOR, _VT100_WHITE);
+    return TERM_CMD_EXIT_SUCCESS;
 }
 
 
@@ -819,23 +931,23 @@ uint8_t CMD_eeprom(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args) {
         return TERM_CMD_EXIT_SUCCESS;
     }
     EEPROM_1_UpdateTemperature();
-	uint8 sfflag = system_fault_Read();
-	sysflt_set(pdTRUE); //halt tesla coil operation during updates!
+    uint8 sfflag = system_fault_Read();
+    sysflt_set(pdTRUE); //halt tesla coil operation during updates!
     
-	if(strcmp(args[0], "save") == 0){
+    if(strcmp(args[0], "save") == 0){
         EEPROM_check_hash(confparam,PARAM_SIZE(confparam),handle);
-	    EEPROM_write_conf(confparam, PARAM_SIZE(confparam),0, handle);
+        EEPROM_write_conf(confparam, PARAM_SIZE(confparam),0, handle);
         
-	}else if(strcmp(args[0], "load") == 0){
-		EEPROM_read_conf(confparam, PARAM_SIZE(confparam) ,0,handle);
+    }else if(strcmp(args[0], "load") == 0){
+        EEPROM_read_conf(confparam, PARAM_SIZE(confparam) ,0,handle);
         
         configure_interrupter();
-	    initialize_charging();
-	    configure_ZCD_to_PWM();
-	}
+        initialize_charging();
+        configure_ZCD_to_PWM();
+    }
     
     system_fault_Control = sfflag;
-	return TERM_CMD_EXIT_SUCCESS;
+    return TERM_CMD_EXIT_SUCCESS;
 }
 
 /*****************************************************************************
@@ -847,16 +959,16 @@ uint8_t CMD_bus(TERMINAL_HANDLE * handle, uint8_t argCount, char ** args){
         return TERM_CMD_EXIT_SUCCESS;
     }
 
-	if(strcmp(args[0], "on") == 0){
-		bus_command = BUS_COMMAND_ON;
-		ttprintf("BUS ON\r\n");
+    if(strcmp(args[0], "on") == 0){
+        bus_command = BUS_COMMAND_ON;
+        ttprintf("BUS ON\r\n");
         return TERM_CMD_EXIT_SUCCESS;
-	}
-	if(strcmp(args[0], "off") == 0){
-		bus_command = BUS_COMMAND_OFF;
-		ttprintf("BUS OFF\r\n");
+    }
+    if(strcmp(args[0], "off") == 0){
+        bus_command = BUS_COMMAND_OFF;
+        ttprintf("BUS OFF\r\n");
         return TERM_CMD_EXIT_SUCCESS;
-	}
+    }
     return TERM_CMD_EXIT_SUCCESS;
 }
 

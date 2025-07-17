@@ -86,6 +86,9 @@
 #include "tsk_audio.h"
 #include "nvm.h"
 
+#include "tracker.h"
+#include "tasks/tsk_tracker.h"
+
 
 /*
  * Only the comprehensive demo uses application hook (callback) functions.  See
@@ -131,17 +134,17 @@ int main( void )
     /* Do not include trace code when performing a code coverage analysis. */
 
     console_init();
-	
-	console_print("Starting UD3\n");
-	console_print("Alarm init...\n");
-	alarm_init();
-	system_fault_Control = 0; //this should suppress any start-up sparking until the system is ready
-	console_print("Init Config...\n");
-	init_config();
-	
+    
+    console_print("Starting UD3\n");
+    console_print("Alarm init...\n");
+    alarm_init();
+    system_fault_Control = 0; //this should suppress any start-up sparking until the system is ready
+    console_print("Init Config...\n");
+    init_config();
+    
     EEPROM_1_Start();
     load_flash();
-	SG_Timer_Start();
+    SG_Timer_Start();
     
     null_port.type = PORT_TYPE_NULL;
     null_port.tx = NULL;
@@ -153,66 +156,69 @@ int main( void )
     eeprom_load(null_handle);
    
     console_print("DMA init...\n");
-	initialize_DMA();		  //sets up all DMA channels
-	console_print("Interrupter init...\n");
-	initialize_interrupter(); //initializes hardware related to the interrupter
-	console_print("ZCD init...\n");
-	initialize_ZCD_to_PWM();  //initializes hardware related to ZCD to PWM
+    initialize_DMA();		  //sets up all DMA channels
+    console_print("Interrupter init...\n");
+    initialize_interrupter(); //initializes hardware related to the interrupter
+    console_print("ZCD init...\n");
+    initialize_ZCD_to_PWM();  //initializes hardware related to ZCD to PWM
     console_print("Charging init...\n");
-	initialize_charging();
+    initialize_charging();
 
-	
+    
 
-	//calls that must always happen after updating the configuration/settings
-	console_print("Configure ZCD init...\n");
-	configure_ZCD_to_PWM();
+    //calls that must always happen after updating the configuration/settings
+    console_print("Configure ZCD init...\n");
+    configure_ZCD_to_PWM();
     
     LED4_Write(1);
-	
+    
 
-	//Starting Tasks
-		console_print("MIN init...\n");
+    //Starting Tasks
+        console_print("MIN init...\n");
         tsk_min_Start();        //Handles UART-Hardware and queues with MIN-Protocol
-	console_print("USB init...\n");
-	tsk_usb_Start();        //Handles USB-Hardware and queues
+    console_print("USB init...\n");
+    tsk_usb_Start();        //Handles USB-Hardware and queues
     console_print("CLI init...\n");
     tsk_cli_Start();		//Commandline interface
     console_print("MIDI init...\n");
-	tsk_midi_Start();       //MIDI synth
-	console_print("Analog init...\n");
-	tsk_analog_Start();		//Reads bus voltage and currents
-	console_print("NTC init...\n");
-	tsk_thermistor_Start(); //Reads thermistors
-	console_print("Fault init...\n");
-	tsk_fault_Start();		//Handles fault conditions
-	console_print("Duty init...\n");
+    tsk_midi_Start();       //MIDI synth
+    console_print("Analog init...\n");
+    tsk_analog_Start();		//Reads bus voltage and currents
+    console_print("NTC init...\n");
+    tsk_thermistor_Start(); //Reads thermistors
+    console_print("Fault init...\n");
+    tsk_fault_Start();		//Handles fault conditions
+    console_print("Duty init...\n");
     tsk_duty_Start();
-	console_print("SID init...\n");
+    console_print("SID init...\n");
     tsk_sid_Start();
     
     if(configuration.pca9685){
-		console_print("HW gauge init...\n");
+        console_print("HW gauge init...\n");
         tsk_hwGauge_init();
     }
-	
-	console_print("Simulation init...\n");
-	tsk_sim_Start();
-	tsk_audio_Start();
+    
+    console_print("Simulation init...\n");
+    tsk_sim_Start();
+    tsk_audio_Start();
+
+    // Start tracker task
+    console_print("Tracker init...\n");
+    tsk_tracker_Start();
 
     //CyGlobalIntEnable; //enables interrupts
     alarm_push(ALM_PRIO_INFO, "UD3 started", ALM_NO_VALUE);
-	
-	vTaskStartScheduler();
-	
 
-	/* If all is well, the scheduler will now be running, and the following
-	line will never be reached.  If the following line does execute, then
-	there was insufficient FreeRTOS heap memory available for the idle and/or
-	timer tasks	to be created.  See the memory management section on the
-	FreeRTOS web site for more details. */
-	for( ;; );
-    
-	return 0;
+    vTaskStartScheduler();
+
+    /* If all is well, the scheduler will now be running, and the following
+    line will never be reached.  If the following line does execute, then
+    there was insufficient FreeRTOS heap memory available for the idle and/or
+    timer tasks to be created.  See the memory management section on the
+    FreeRTOS web site for more details. */
+    for( ;; );
+
+    return 0;
 }
 /*-----------------------------------------------------------*/
 
